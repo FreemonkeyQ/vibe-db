@@ -1,0 +1,238 @@
+// ========================================================================
+// prisma/schema.prisma — Prisma 数据库模型定义文件
+// ========================================================================
+//
+// 【文件用途】
+// 这是 Prisma ORM 的核心文件，用一种专用的 DSL（领域特定语言）来定义：
+// 1. 数据库客户端生成器（generator）— 如何生成数据库操作代码
+// 2. 数据源（datasource）— 使用什么类型的数据库
+// 3. 数据模型（model）— 数据库中有哪些表、哪些字段、表之间什么关系
+//
+// 【在项目中的角色】
+// vibe-db 是一个数据库 Schema 可视化设计工具。这个文件定义了 vibe-db 自身
+// 所需要的数据库结构——用来存储用户设计的数据库 Schema 信息。
+// 可以理解为：这是"设计工具自己的数据库设计"。
+//
+// 【工作流程】
+// 1. 你在这个文件中定义/修改数据模型
+// 2. 运行 `prisma migrate dev` 生成数据库迁移文件并应用到数据库
+// 3. 运行 `prisma generate` 根据模型生成 TypeScript 类型安全的数据库客户端
+// 4. 在代码中使用生成的客户端来进行 CRUD（增删改查）操作
+// ========================================================================
+
+// -----------------------------------------------------------------------
+// generator（生成器）— 告诉 Prisma 如何生成数据库客户端代码
+// -----------------------------------------------------------------------
+generator client {
+  // provider: 使用 "prisma-client" 生成器（Prisma 6 的新写法，旧版本用 "prisma-client-js"）
+  provider = "prisma-client"
+
+  // output: 生成的客户端代码输出目录
+  // 这里输出到 src/generated/prisma 目录下，项目中通过 import { PrismaClient } from '@/generated/prisma' 来使用
+  output   = "../src/generated/prisma"
+}
+
+// -----------------------------------------------------------------------
+// datasource（数据源）— 定义使用的数据库类型
+// -----------------------------------------------------------------------
+datasource db {
+  // provider: 数据库类型，这里使用 PostgreSQL（一个功能强大的开源关系数据库）
+  // 其他可选值：mysql、sqlite、sqlserver、mongodb 等
+  // 注意：数据库连接 URL 在 prisma.config.ts 中配置，这里不需要重复写 url
+  provider = "postgresql"
+}
+
+// -----------------------------------------------------------------------
+// Schema 模型 — 数据库设计方案
+// -----------------------------------------------------------------------
+// 【业务含义】一个 Schema 代表一个完整的数据库设计方案（项目）。
+// 用户可以创建多个 Schema，每个 Schema 包含若干张数据表和表间关系。
+// 类比：Schema 就像一个"画布"，用户在上面摆放数据表并连线。
+model Schema {
+  // id: 主键，使用 cuid() 算法自动生成全局唯一标识符
+  // @id 标记为主键，@default(cuid()) 设置默认值为自动生成的 CUID
+  // CUID 相比自增 ID 的优势：不暴露数据量、分布式环境下不冲突、URL 友好
+  id          String     @id @default(cuid())
+
+  // name: Schema 的名称，如 "电商系统数据库"、"博客系统"
+  name        String
+
+  // description: Schema 的描述，可选字段（? 表示可以为 null）
+  description String?
+
+  // tables: 该 Schema 下的所有数据表（一对多关系：一个 Schema 有多张 Table）
+  // 这不是一个实际的数据库列，而是 Prisma 的关系字段，用于表达表间关系
+  tables      Table[]
+
+  // relations: 该 Schema 下定义的所有表间关系（一对多：一个 Schema 有多个 Relation）
+  relations   Relation[]
+
+  // createdAt: 创建时间，默认为当前时间
+  createdAt   DateTime   @default(now())
+
+  // updatedAt: 更新时间，@updatedAt 让 Prisma 在每次更新记录时自动刷新这个字段
+  updatedAt   DateTime   @updatedAt
+}
+
+// -----------------------------------------------------------------------
+// Table 模型 — 数据表
+// -----------------------------------------------------------------------
+// 【业务含义】一张 Table 代表用户设计的一张数据库表。
+// 在可视化界面中，每张 Table 是画布上的一个可拖拽的节点（Node），
+// 通过 @xyflow/react 渲染为流程图中的卡片。
+model Table {
+  // id: 主键，自动生成的唯一标识
+  id        String    @id @default(cuid())
+
+  // name: 表名，如 "users"、"orders"、"products"
+  name      String
+
+  // color: 表在画布上显示的颜色（十六进制颜色值），默认蓝色
+  // 这让用户可以用不同颜色来区分不同类别的表（如用户相关、订单相关）
+  color     String    @default("#2b80ff")
+
+  // remark: 表的备注说明，可选
+  remark    String?   // 表备注
+
+  // positionX / positionY: 表在画布上的坐标位置
+  // @xyflow/react 需要这两个值来确定节点在画布上的 x、y 位置
+  // 默认值 0 表示放在画布原点，用户拖动后会更新这两个值
+  positionX Float     @default(0)
+  positionY Float     @default(0)
+
+  // order: 排序序号，用于控制表在列表中的显示顺序
+  order     Int       @default(0) // 排序
+
+  // schemaId: 外键，指向所属的 Schema
+  schemaId  String
+
+  // schema: 关联的 Schema 对象（多对一关系：多张 Table 属于一个 Schema）
+  // fields: [schemaId] — 本表的 schemaId 字段作为外键
+  // references: [id] — 关联 Schema 表的 id 字段
+  // onDelete: Cascade — 级联删除：当 Schema 被删除时，其下所有 Table 也自动删除
+  schema    Schema    @relation(fields: [schemaId], references: [id], onDelete: Cascade)
+
+  // fields: 该表包含的所有字段（一对多：一张 Table 有多个 Field）
+  fields    Field[]
+
+  // indexes: 该表上定义的所有索引（一对多：一张 Table 有多个 Index）
+  indexes   Index[]
+
+  // createdAt / updatedAt: 记录的创建和更新时间
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // enable: 是否启用该表，默认启用
+  // 这允许用户"软删除"或临时隐藏某张表，而不是直接从数据库中删除
+  enable    Boolean   @default(true)
+}
+
+// -----------------------------------------------------------------------
+// Field 模型 — 表的字段（列）
+// -----------------------------------------------------------------------
+// 【业务含义】一个 Field 代表数据表中的一个字段（即数据库表的一列）。
+// 例如 users 表可能有 id、name、email 等字段。
+// 在可视化界面中，字段显示在表节点卡片内部的列表中。
+model Field {
+  // id: 主键
+  id         String  @id @default(cuid())
+
+  // name: 字段名称，如 "id"、"username"、"email"
+  name       String
+
+  // type: 字段的数据类型，如 "VARCHAR"、"INT"、"TEXT"、"TIMESTAMP" 等
+  // 使用 String 而非枚举，是因为不同数据库支持的类型不同，保持灵活性
+  type       String
+
+  // isPrimary: 是否为主键字段（每张表通常有一个主键）
+  isPrimary  Boolean @default(false)
+
+  // isNullable: 是否允许为空（NULL）
+  // 默认 true 表示允许为空，和大多数数据库的默认行为一致
+  isNullable Boolean @default(true)
+
+  // remark: 字段的备注说明，可选
+  remark     String? // 字段备注
+
+  // order: 字段的排序序号，用于控制字段在表中的显示顺序
+  order      Int     @default(0)
+
+  // tableId: 外键，指向所属的 Table
+  tableId    String
+
+  // table: 关联的 Table 对象（多对一关系）
+  // onDelete: Cascade — 删除表时，其下所有字段也自动删除
+  table      Table   @relation(fields: [tableId], references: [id], onDelete: Cascade)
+}
+
+// -----------------------------------------------------------------------
+// Index 模型 — 数据库索引
+// -----------------------------------------------------------------------
+// 【业务含义】一个 Index 代表用户为数据表定义的一个索引。
+// 索引是数据库优化查询性能的重要手段，类似书的目录，
+// 让数据库可以快速定位数据，而不需要逐行扫描整张表。
+model Index {
+  // id: 主键
+  id       String  @id @default(cuid())
+
+  // name: 索引名称，如 "idx_users_email"
+  name     String
+
+  // type: 索引类型，默认 "BTREE"（B 树索引，最常用的索引类型）
+  // 其他常见类型：HASH（哈希索引）、GIN（全文搜索）、GIST（空间索引）等
+  type     String  @default("BTREE")
+
+  // isUnique: 是否为唯一索引
+  // 唯一索引确保索引列的值不会重复（如 email 字段通常需要唯一索引）
+  isUnique Boolean @default(false)
+
+  // order: 索引的排序序号
+  order    Int     @default(0)
+
+  // tableId: 外键，指向所属的 Table
+  tableId  String
+
+  // table: 关联的 Table 对象（多对一关系），级联删除
+  table    Table   @relation(fields: [tableId], references: [id], onDelete: Cascade)
+}
+
+// -----------------------------------------------------------------------
+// Relation 模型 — 表间关系（外键关系）
+// -----------------------------------------------------------------------
+// 【业务含义】一个 Relation 代表两张表之间的关联关系。
+// 在可视化界面中，Relation 表现为两张表节点之间的连线（Edge）。
+// 例如：orders 表的 userId 字段关联 users 表的 id 字段，表示"一个用户有多个订单"。
+model Relation {
+  // id: 主键
+  id            String   @id @default(cuid())
+
+  // name: 关系的名称/标签，如 "用户-订单"
+  name          String
+
+  // cardinality: 关系的基数类型，描述两张表之间的数量关系
+  // 默认值 "ONE_TO_MANY"（一对多），其他可能的值：
+  // - "ONE_TO_ONE"  — 一对一（如 user ↔ profile）
+  // - "ONE_TO_MANY" — 一对多（如 user → orders）
+  // - "MANY_TO_MANY"— 多对多（如 students ↔ courses）
+  cardinality   String   @default("ONE_TO_MANY")
+
+  // schemaId: 外键，指向所属的 Schema
+  schemaId      String
+
+  // schema: 关联的 Schema 对象，级联删除
+  schema        Schema   @relation(fields: [schemaId], references: [id], onDelete: Cascade)
+
+  // sourceTableId / sourceFieldId: 关系的"源"端（外键所在的表和字段）
+  // 例如在 orders.userId → users.id 中，source 是 orders 表的 userId 字段
+  sourceTableId String
+  sourceFieldId String
+
+  // targetTableId / targetFieldId: 关系的"目标"端（被引用的表和字段）
+  // 例如在 orders.userId → users.id 中，target 是 users 表的 id 字段
+  targetTableId String
+  targetFieldId String
+
+  // createdAt / updatedAt: 记录的创建和更新时间
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}

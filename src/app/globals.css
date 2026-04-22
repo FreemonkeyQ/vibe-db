@@ -1,0 +1,30 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap');
+@import 'tailwindcss';
+
+@theme {
+  /* 自定义颜色 */
+  --color-primary: #3b82f6;
+  --color-secondary: #64748b;
+
+  /* 自定义字体 */
+  --font-sans: 'Outfit', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, monospace;
+
+  /* 自定义间距 */
+  --spacing-18: 4.5rem;
+  --spacing-88: 22rem;
+
+  /* 自定义断点 */
+  --breakpoint-xs: 30rem;
+  --breakpoint-3xl: 120rem;
+}
+
+/* ReactFlow 边动画（从 CustomEdge 移出，避免每个边实例重复注入 style 标签） */
+@keyframes dash-move {
+  from { stroke-dashoffset: 20; }
+  to   { stroke-dashoffset: 0; }
+}
+
+.edge-selected {
+  animation: dash-move 0.6s linear infinite;
+}
